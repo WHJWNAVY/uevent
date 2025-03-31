@@ -12,6 +12,7 @@
 #include "ustream.h"
 
 static struct uloop_fd server;
+static const char *host = "127.0.0.1";
 static const char *port = "10000";
 struct client *next_client = NULL;
 
@@ -105,7 +106,7 @@ static void server_cb(struct uloop_fd *fd, unsigned int events) {
 
 static int run_server(void) {
     server.cb = server_cb;
-    server.fd = usock(USOCK_TCP | USOCK_SERVER | USOCK_IPV4ONLY | USOCK_NUMERIC, "127.0.0.1", port);
+    server.fd = usock(USOCK_TCP | USOCK_SERVER | USOCK_IPV4ONLY | USOCK_NUMERIC, host, port);
     if (server.fd < 0) {
         perror("usock");
         return 1;
@@ -122,7 +123,7 @@ static int run_server(void) {
 }
 
 static int usage(const char *name) {
-    fprintf(stderr, "Usage: %s -p <port>\n", name);
+    fprintf(stderr, "Usage: %s [-p <port>]\n", name);
     return 1;
 }
 
