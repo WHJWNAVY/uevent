@@ -18,11 +18,11 @@
 #ifndef _ULOOP_H__
 #define _ULOOP_H__
 
-#include <sys/time.h>
-#include <sys/types.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <signal.h>
+#include <sys/time.h>
+#include <sys/types.h>
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #define USE_KQUEUE
@@ -40,47 +40,44 @@ typedef void (*uloop_fd_handler)(struct uloop_fd *u, unsigned int events);
 typedef void (*uloop_timeout_handler)(struct uloop_timeout *t);
 typedef void (*uloop_process_handler)(struct uloop_process *c, int ret);
 
-#define ULOOP_READ		(1 << 0)
-#define ULOOP_WRITE		(1 << 1)
-#define ULOOP_EDGE_TRIGGER	(1 << 2)
-#define ULOOP_BLOCKING		(1 << 3)
+#define ULOOP_READ (1 << 0)
+#define ULOOP_WRITE (1 << 1)
+#define ULOOP_EDGE_TRIGGER (1 << 2)
+#define ULOOP_BLOCKING (1 << 3)
 
-#define ULOOP_EVENT_MASK	(ULOOP_READ | ULOOP_WRITE)
+#define ULOOP_EVENT_MASK (ULOOP_READ | ULOOP_WRITE)
 
 /* internal flags */
-#define ULOOP_EVENT_BUFFERED	(1 << 4)
+#define ULOOP_EVENT_BUFFERED (1 << 4)
 #ifdef USE_KQUEUE
-#define ULOOP_EDGE_DEFER	(1 << 5)
+#define ULOOP_EDGE_DEFER (1 << 5)
 #endif
 
-#define ULOOP_ERROR_CB		(1 << 6)
+#define ULOOP_ERROR_CB (1 << 6)
 
-struct uloop_fd
-{
-	uloop_fd_handler cb;
-	int fd;
-	bool eof;
-	bool error;
-	bool registered;
-	uint8_t flags;
+struct uloop_fd {
+    uloop_fd_handler cb;
+    int fd;
+    bool eof;
+    bool error;
+    bool registered;
+    uint8_t flags;
 };
 
-struct uloop_timeout
-{
-	struct list_head list;
-	bool pending;
+struct uloop_timeout {
+    struct list_head list;
+    bool pending;
 
-	uloop_timeout_handler cb;
-	struct timeval time;
+    uloop_timeout_handler cb;
+    struct timeval time;
 };
 
-struct uloop_process
-{
-	struct list_head list;
-	bool pending;
+struct uloop_process {
+    struct list_head list;
+    bool pending;
 
-	uloop_process_handler cb;
-	pid_t pid;
+    uloop_process_handler cb;
+    pid_t pid;
 };
 
 extern bool uloop_cancelled;
@@ -99,16 +96,14 @@ int uloop_process_delete(struct uloop_process *p);
 
 bool uloop_cancelling(void);
 
-static inline void uloop_end(void)
-{
-	uloop_cancelled = true;
+static inline void uloop_end(void) {
+    uloop_cancelled = true;
 }
 
 int uloop_init(void);
 int uloop_run_timeout(int timeout);
-static inline int uloop_run(void)
-{
-	return uloop_run_timeout(-1);
+static inline int uloop_run(void) {
+    return uloop_run_timeout(-1);
 }
 void uloop_done(void);
 

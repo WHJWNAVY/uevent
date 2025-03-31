@@ -19,8 +19,8 @@ SOURCES_C:=$(wildcard $(SRCDIR)/$(TARGET_C).c $(LIBSRCS))
 OBJECTS_S:=$(patsubst %.c, %.o, $(SOURCES_S))
 OBJECTS_C:=$(patsubst %.c, %.o, $(SOURCES_C))
 
-$(info "SOURCES_S=$(SOURCES_S)")
-$(info "SOURCES_C=$(SOURCES_C)")
+# $(info "SOURCES_S=$(SOURCES_S)")
+# $(info "SOURCES_C=$(SOURCES_C)")
 $(info "OBJECTS_S=$(OBJECTS_S)")
 $(info "OBJECTS_C=$(OBJECTS_C)")
 
