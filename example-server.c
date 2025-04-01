@@ -1,12 +1,14 @@
-#include <netinet/in.h>
-#include <sys/socket.h>
-
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+#include "list.h"
 #include "uloop.h"
 #include "usock.h"
 #include "ustream.h"
@@ -17,15 +19,41 @@ static const char *port = "10000";
 struct client *next_client = NULL;
 
 struct client {
-    struct sockaddr_in sin;
+    struct list_head list;
     struct ustream_fd s;
+    char addr[INET6_ADDRSTRLEN + 1];
     int ctr;
 };
 
-static void client_read_cb(struct ustream *s, int bytes) {
-    struct client *cl = container_of(s, struct client, s.stream);
-    struct ustream_buf *buf = s->r.head;
-    char *newline, *str;
+char *sockaddr_to_string(struct sockaddr_in *addr, char *out, size_t len) {
+    int ret = 0;
+    char str[INET6_ADDRSTRLEN + 1] = {0};
+
+    if (!addr || !out || !len) {
+        return NULL;
+    }
+
+    ret = snprintf(str, sizeof(str), "%s:%d", inet_ntop(addr->sin_family, &(addr->sin_addr), str, len),
+                   ntohs(addr->sin_port));
+    if (ret < 0) {
+        return NULL;
+    }
+
+    strncpy(out, str, len);
+    return out;
+}
+
+static void client_notify_read(struct ustream *s, int bytes) {
+    struct client *cl = NULL;
+    struct ustream_buf *buf = NULL;
+    char *newline = NULL;
+    char *str = NULL;
+
+    if (!s) {
+        return;
+    }
+    buf = s->r.head;
+    cl = container_of(s, struct client, s.stream);
 
     do {
         str = ustream_get_read_buf(s, NULL);
@@ -39,7 +67,7 @@ static void client_read_cb(struct ustream *s, int bytes) {
         }
 
         *newline = 0;
-        fprintf(stderr, "Block read: %s, bytes: %d\n", str, newline + 1 - str);
+        fprintf(stderr, "Block read: %s, bytes: %d from %s\n", str, newline + 1 - str, cl->addr);
         ustream_printf(s, "%s\n", str);
         ustream_consume(s, newline + 1 - str);
         cl->ctr += newline + 1 - str;
@@ -52,16 +80,27 @@ static void client_read_cb(struct ustream *s, int bytes) {
 }
 
 static void client_close(struct ustream *s) {
-    struct client *cl = container_of(s, struct client, s.stream);
+    struct client *cl = NULL;
+    if (!s) {
+        return;
+    }
+    cl = container_of(s, struct client, s.stream);
+    fprintf(stderr, "Connection %s closed\n", cl->addr);
 
-    fprintf(stderr, "Connection closed\n");
+    list_del(&(cl->list));
+
     ustream_free(s);
     close(cl->s.fd.fd);
     free(cl);
 }
 
 static void client_notify_write(struct ustream *s, int bytes) {
-    fprintf(stderr, "Wrote %d bytes, pending: %d\n", bytes, s->w.data_bytes);
+    struct client *cl = NULL;
+    if (!s) {
+        return;
+    }
+    cl = container_of(s, struct client, s.stream);
+    fprintf(stderr, "Wrote %d bytes to %s, pending: %d\n", bytes, cl->addr, s->w.data_bytes);
 
     if (s->w.data_bytes < 128 && ustream_read_blocked(s)) {
         fprintf(stderr, "Unblock read\n");
@@ -70,38 +109,46 @@ static void client_notify_write(struct ustream *s, int bytes) {
 }
 
 static void client_notify_state(struct ustream *s) {
-    struct client *cl = container_of(s, struct client, s.stream);
-
-    if (!s->eof)
+    struct client *cl = NULL;
+    if (!s) {
         return;
-
-    fprintf(stderr, "eof!, pending: %d, total: %d\n", s->w.data_bytes, cl->ctr);
-    if (!s->w.data_bytes)
+    }
+    if (!s->eof) {
+        return;
+    }
+    cl = container_of(s, struct client, s.stream);
+    fprintf(stderr, "Connection %s EOF!, pending: %d, total: %d\n", cl->addr, s->w.data_bytes, cl->ctr);
+    if (!s->w.data_bytes) {
         return client_close(s);
+    }
 }
 
 static void server_cb(struct uloop_fd *fd, unsigned int events) {
-    struct client *cl;
-    unsigned int sl = sizeof(struct sockaddr_in);
-    int sfd;
+    struct client *cl = NULL;
+    struct sockaddr_in sin = {0};
+    unsigned int sl = sizeof(sin);
+    int sfd = 0;
 
-    if (!next_client)
+    if (!next_client) {
         next_client = calloc(1, sizeof(*next_client));
+        INIT_LIST_HEAD(&(next_client->list));
+    }
 
-    cl = next_client;
-    sfd = accept(server.fd, (struct sockaddr *)&cl->sin, &sl);
+    cl = calloc(1, sizeof(struct client));
+    sfd = accept(server.fd, (struct sockaddr *)&sin, &sl);
     if (sfd < 0) {
         fprintf(stderr, "Accept failed\n");
         return;
     }
 
     cl->s.stream.string_data = true;
-    cl->s.stream.notify_read = client_read_cb;
+    cl->s.stream.notify_read = client_notify_read;
     cl->s.stream.notify_state = client_notify_state;
     cl->s.stream.notify_write = client_notify_write;
     ustream_fd_init(&cl->s, sfd);
-    next_client = NULL;
-    fprintf(stderr, "New connection\n");
+    list_add_tail(&(cl->list), &(next_client->list));
+    sockaddr_to_string(&sin, cl->addr, sizeof(cl->addr));
+    fprintf(stderr, "New connection from %s\n", cl->addr);
 }
 
 static int run_server(void) {

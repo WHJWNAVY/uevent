@@ -1,11 +1,12 @@
-#include <netinet/in.h>
-#include <sys/socket.h>
 
-#include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
+
+#include <netinet/in.h>
+#include <sys/socket.h>
 
 #include "uloop.h"
 #include "usock.h"
